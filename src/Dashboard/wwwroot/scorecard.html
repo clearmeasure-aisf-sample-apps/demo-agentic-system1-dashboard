@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Delivery scorecard</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    main.scorecard { padding: 1.5rem; color: var(--ink); }
+    .scorecard table { border-collapse: collapse; margin-top: 1rem; }
+    .scorecard th, .scorecard td { border: 1px solid var(--hairline); padding: .4rem .7rem; text-align: right; }
+    .scorecard th:first-child, .scorecard td:first-child { text-align: left; }
+    .scorecard .tiles { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
+    .scorecard .tile { background: var(--raised); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; min-width: 9rem; }
+    .scorecard .tile b { display: block; font-size: 1.8rem; }
+    .scorecard .muted { color: var(--ink-secondary); }
+    .scorecard a { color: var(--link); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="topbar__brand" href="./"><img src="clear-measure-logo-white.png" alt="Clear Measure" width="160" height="40" /></a>
+    <span class="topbar__space">Delivery scorecard</span>
+  </header>
+  <main class="scorecard" id="scorecard">
+    <p class="muted" role="status">Loading the weekly scorecard</p>
+  </main>
+  <script>
+    // The weekly numbers the system's workflow "scorecard" commits to its branch scorecard-data (kit decision 0062).
+    (async () => {
+      const root = document.getElementById('scorecard');
+      const esc = s => String(s ?? '-').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      try {
+        const topology = await (await fetch('topology.json', { cache: 'no-store' })).json();
+        const repo = new URL(topology.system.repository).pathname.replace(/^\/|\/$/g, '');
+        const data = `https://raw.githubusercontent.com/${repo}/scorecard-data`;
+        const s = await (await fetch(`${data}/latest/summary.json`, { cache: 'no-store' })).json();
+        const w = s.latestWeek || {};
+        const tile = (label, v) => `<div class="tile"><span class="muted">${label}</span><b>${esc(v)}</b></div>`;
+        root.innerHTML = `
+          <h1>${esc(topology.system.name || s.system)}: ${esc(s.isoWeek)}</h1>
+          <p class="muted">Generated ${esc(s.generatedUtc)} by the weekly scorecard workflow. Week ${esc(w.periodLabel)}.</p>
+          <div class="tiles">${tile('Delivered', w.itemsDelivered)}${tile('Throughput', w.throughput)}${tile('Rework', w.rework)}
+            ${tile('Started', w.itemsStarted)}${tile('Work in process', w.workInProcess)}${tile('Mean time to delivery (h)', w.meanTimeToDeliveryHours)}</div>
+          <table><thead><tr><th>Week</th><th>Delivered</th><th>Throughput</th><th>Rework</th><th>Net</th><th>Started</th><th>WIP</th><th>MTTD (h)</th></tr></thead><tbody>
+          ${(s.weeks || []).map(x => `<tr><td>${esc(x.periodLabel)}</td><td>${esc(x.itemsDelivered)}</td><td>${esc(x.throughput)}</td><td>${esc(x.rework)}</td><td>${esc(x.netThroughput)}</td><td>${esc(x.itemsStarted)}</td><td>${esc(x.workInProcess)}</td><td>${esc(x.meanTimeToDeliveryHours)}</td></tr>`).join('')}
+          </tbody></table>
+          <h2>Repositories</h2><ul>${(s.repositories || []).map(r => `<li><a href="https://github.com/${esc(r.repository)}">${esc(r.repository)}</a>: ${esc(r.workItems)} work items, delivered at ${esc(r.deliveredStage)}</li>`).join('')}</ul>
+          <p><a href="https://github.com/${esc(repo)}/tree/scorecard-data">Every week's numbers</a> · <a href="./">Health dashboard</a></p>`;
+      } catch (e) {
+        root.innerHTML = '<p class="muted">No weekly scorecard yet: the workflow "scorecard" of the system repository writes it to its branch scorecard-data.</p>';
+      }
+    })();
+  </script>
+</body>
+</html>

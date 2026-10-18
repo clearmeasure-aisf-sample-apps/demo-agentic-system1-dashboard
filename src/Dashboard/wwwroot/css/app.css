@@ -2671,3 +2671,9 @@ main {
     background: CanvasText;
   }
 }
+
+/* The link to the weekly delivery scorecard page (scorecard.html). */
+.topbar__link {
+  margin-left: auto;
+  color: var(--link);
+}
